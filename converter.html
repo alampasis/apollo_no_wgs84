@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eef2f3">
+<title>APOLLO · G → μέτρα</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef2f3;color:#17252d;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+body{display:grid;place-items:center;padding:18px}
+main{width:min(520px,100%);background:#fff;border-radius:16px;padding:18px;box-shadow:0 8px 34px #0002;border:1px solid #dfe5e7}
+h1{margin:0 0 4px;font-size:18px;letter-spacing:.05em}
+.sub{margin:0 0 16px;color:#69767c;font-size:12px}
+label{display:block;font-size:12px;font-weight:800;margin-bottom:6px}
+input{width:100%;border:1px solid #cbd4d7;border-radius:9px;padding:11px 12px;font:700 17px/1.2 "DejaVu Sans Mono","Noto Sans Mono",monospace;color:#17252d;background:#fafcfc;outline:none}
+input:focus{border-color:#536a75;box-shadow:0 0 0 2px #536a7522}
+button{width:100%;margin-top:10px;border:0;border-radius:9px;padding:10px 12px;font-weight:850;cursor:pointer}
+#convert{background:#17252d;color:#fff}
+#close{background:#e7ecee;color:#25343a}
+#result{display:none;margin-top:14px;border-radius:11px;background:#17252d;color:#fff;padding:13px}
+#meters{font:850 21px/1.25 "DejaVu Sans Mono","Noto Sans Mono",monospace;overflow-wrap:anywhere}
+#shownG{margin-top:5px;color:#bec9ce;font:600 12px/1.35 "DejaVu Sans Mono","Noto Sans Mono",monospace}
+#constant{margin-top:12px;padding-top:10px;border-top:1px solid #dbe1e3;color:#45545b;font-size:12px;font-weight:700}
+#error{min-height:18px;margin-top:8px;color:#9b3030;font-size:11px}
+#sacred{margin-top:18px;color:#6d777c;text-align:center;font:500 12px/1.4 Georgia,"Noto Serif",serif;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<main>
+  <h1>APOLLO · G → μέτρα</h1>
+  <p class="sub">Ανεξάρτητος εξωτερικός converter. Δεν συμμετέχει στη μετρική G.</p>
+  <label for="gInput">Απόσταση σε G</label>
+  <input id="gInput" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="π.χ. 14,259228056546">
+  <button id="convert" type="button">ΜΕΤΑΤΡΟΠΗ</button>
+  <div id="result">
+    <div id="meters"></div>
+    <div id="shownG"></div>
+  </div>
+  <div id="constant">1 G = 1 Απολλώνεια Μονάδα = 12.518,104792632 μέτρα</div>
+  <div id="error"></div>
+  <button id="close" type="button">ΚΛΕΙΣΙΜΟ</button>
+  <div id="sacred">ἔστ' ἦμαρ ὅτε Φοῖβος πάλιν ἐλεύσεται καὶ  εἰς  ἀεὶ ἔσεται</div>
+</main>
+<script>
+(()=>{'use strict';
+const CONVERTER_ID='APOLLO_G_CONVERTER_V2_HTML_2026-09-08';
+const METERS_PER_G={i:12518104792632000n,scale:12,sign:1};
+const input=document.getElementById('gInput'),convert=document.getElementById('convert'),result=document.getElementById('result'),meters=document.getElementById('meters'),shownG=document.getElementById('shownG'),error=document.getElementById('error');
+function pow10(n){return 10n**BigInt(n)}
+function parseDecimal(s){s=String(s??'').trim().replace(',','.');if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(s))throw new Error('Μη έγκυρη τιμή G.');let sign=1;if(s[0]==='-'){sign=-1;s=s.slice(1)}else if(s[0]==='+')s=s.slice(1);let [w='0',f='']=s.split('.');if(!w)w='0';const digits=(w+f).replace(/^0+(?=\d)/,'')||'0';return{i:BigInt(digits),scale:f.length,sign}}
+function multiply(a,b){return{i:a.i*b.i,scale:a.scale+b.scale,sign:a.sign*b.sign}}
+function quantize(x,target=12){let i=x.i,scale=x.scale;if(scale<target){i*=pow10(target-scale);scale=target}else if(scale>target){const div=pow10(scale-target),q=i/div,rem=i%div,twice=rem*2n;let qq=q;if(twice>div||(twice===div&&(q&1n)===1n))qq=q+1n;i=qq;scale=target}return{i,scale,sign:x.sign}}
+function groupInt(s){let out='';while(s.length>3){out='.'+s.slice(-3)+out;s=s.slice(0,-3)}return s+out}
+function greekNumber(x,target=12){const q=quantize(x,target);let s=q.i.toString().padStart(q.scale+1,'0'),w=q.scale?s.slice(0,-q.scale):s,f=q.scale?s.slice(-q.scale):'';f=f.replace(/0+$/,'');w=groupInt(w||'0');const sign=q.sign<0&&q.i!==0n?'-':'';return sign+w+(f?','+f:'')}
+function doConvert(){try{error.textContent='';const g=parseDecimal(input.value),m=multiply(g,METERS_PER_G);shownG.textContent='Απόσταση = '+greekNumber(g)+' G';meters.textContent=greekNumber(m)+' μέτρα';result.style.display='block'}catch(e){result.style.display='none';error.textContent=e.message||String(e)}}
+convert.addEventListener('click',doConvert);input.addEventListener('keydown',e=>{if(e.key==='Enter')doConvert()});document.getElementById('close').addEventListener('click',()=>window.close());
+const q=new URLSearchParams(location.search).get('g');if(q!==null){input.value=q;doConvert()}else input.focus();
+})();
+</script>
+</body>
+</html>
