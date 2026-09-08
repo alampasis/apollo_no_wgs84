@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#e8edf0">
+<title>APOLLO1061 — ΕΑ24 / G</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#e8edf0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  #map{position:fixed;inset:0;overflow:hidden;touch-action:none;cursor:grab;background:#f4f1e8;user-select:none;-webkit-user-select:none}
+  #map.dragging{cursor:grabbing}
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #pin{position:absolute;width:30px;height:30px;transform:translate(-15px,-27px);pointer-events:none;display:none;z-index:20}
+  #pin:before{content:"";position:absolute;left:8px;top:1px;width:14px;height:14px;border:3px solid #fff;border-radius:50%;background:#111;box-shadow:0 1px 5px #0008}
+  #pin:after{content:"";position:absolute;left:13px;top:16px;width:4px;height:12px;background:#111;box-shadow:0 1px 3px #0008}
+  #out{position:fixed;left:10px;right:10px;bottom:max(12px,env(safe-area-inset-bottom));z-index:40;display:none;background:rgba(15,18,20,.94);color:#fff;border-radius:12px;padding:10px 48px 10px 12px;box-shadow:0 4px 24px #0008;backdrop-filter:blur(7px)}
+  #copyBtn{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;border-radius:8px;background:#ffffff14;color:#fff;font-size:20px;line-height:32px;text-align:center;cursor:pointer;padding:0;touch-action:manipulation}
+  #copyBtn:active{background:#ffffff2b;transform:scale(.96)}
+  .row{display:grid;grid-template-columns:44px 1fr;gap:8px;align-items:start;margin:2px 0}
+  .lab{font-size:12px;font-weight:800;color:#b7c0c7;padding-top:2px}
+  .code{font-family:"DejaVu Sans Mono","Noto Sans Mono",monospace;font-size:14px;line-height:1.35;overflow-wrap:anywhere;word-break:break-all;letter-spacing:.02em}
+  #hint{position:fixed;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:30;padding:5px 9px;border-radius:999px;background:rgba(15,18,20,.72);color:#fff;font-size:11px;pointer-events:none;white-space:nowrap;transition:opacity .5s}
+  #status{position:fixed;left:8px;top:max(8px,env(safe-area-inset-top));z-index:28;padding:4px 7px;border-radius:7px;background:rgba(255,255,255,.88);color:#333;font-size:10px;pointer-events:none;box-shadow:0 1px 5px #0002}
+  #attr{position:fixed;right:5px;bottom:3px;z-index:25;font-size:9px;background:#ffffffe6;padding:1px 4px;border-radius:3px;color:#333;pointer-events:none}
+  #fatal{position:fixed;inset:0;display:none;place-items:center;z-index:100;background:#111;color:#fff;padding:30px;text-align:center;font-weight:700;line-height:1.45}
+  @media(min-width:900px){#out{left:50%;right:auto;transform:translateX(-50%);width:min(720px,calc(100vw - 20px))}.code{font-size:15px}}
+
+  /* APOLLO1061 measurement layer */
+  #pin{z-index:42}
+  .permPin{position:absolute;width:34px;height:40px;transform:translate(-17px,-34px);pointer-events:auto;display:none;z-index:41;cursor:pointer}
+  .permPin:before{content:"";position:absolute;left:7px;top:1px;width:20px;height:20px;border:3px solid #fff;border-radius:50%;background:#17252d;box-shadow:0 1px 6px #0009}
+  .permPin:after{content:"";position:absolute;left:15px;top:21px;width:4px;height:13px;background:#17252d;box-shadow:0 1px 3px #0008}
+  .permPin span{position:absolute;left:0;top:3px;width:34px;text-align:center;color:#fff;font-size:11px;font-weight:900;z-index:2;line-height:18px}
+  #distanceLabel{position:absolute;display:none;z-index:43;transform:translate(-50%,-140%);background:rgba(17,28,34,.92);color:#fff;border-radius:7px;padding:4px 7px;font:700 12px/1.15 "DejaVu Sans Mono","Noto Sans Mono",monospace;white-space:nowrap;box-shadow:0 2px 10px #0005;pointer-events:none}
+  #out{position:fixed;left:12px;right:auto;bottom:auto;top:70px;width:min(560px,calc(100vw - 24px));z-index:60;transform:none;padding:10px 48px 10px 12px}
+  #controlPanel{position:fixed;right:10px;top:max(42px,env(safe-area-inset-top));z-index:55;width:min(420px,calc(100vw - 20px));max-height:calc(100vh - 54px);overflow:auto;background:rgba(247,248,246,.96);color:#1d2529;border:1px solid #ffffffcc;border-radius:14px;padding:11px;box-shadow:0 5px 28px #0005;backdrop-filter:blur(8px)}
+  #panelTitle{font-size:14px;font-weight:900;letter-spacing:.08em;margin:0 0 8px 1px}
+  .inputCard{border:1px solid #cfd6d8;border-radius:10px;padding:8px;margin:7px 0;background:#fff}
+  .inputCard.active{border-color:#526a75;box-shadow:0 0 0 2px #526a7522}
+  .inputHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
+  .inputHead strong{font-size:12px;letter-spacing:.04em}
+  .miniBtn{border:1px solid #cbd2d5;background:#f5f7f7;color:#29363c;border-radius:7px;padding:4px 7px;font-size:10px;font-weight:750;cursor:pointer}
+  .packetInput{width:100%;min-height:58px;resize:vertical;border:0;outline:0;background:#f8faf9;border-radius:7px;padding:7px 8px;color:#172127;font:600 11px/1.38 "DejaVu Sans Mono","Noto Sans Mono",monospace;overflow-wrap:anywhere}
+  #sacred{margin:8px 4px 9px;color:#667177;font:500 12px/1.35 Georgia,"Noto Serif",serif;text-align:center;white-space:pre-wrap}
+  #actionRow{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:7px}
+  #calcBtn,#clearAllBtn,#converterBtn{border:0;border-radius:9px;padding:9px 10px;font-weight:850;cursor:pointer}
+  #calcBtn{background:#17252d;color:#fff}
+  #calcBtn:disabled{opacity:.38;cursor:not-allowed}
+  #clearAllBtn{background:#e7ebec;color:#29363c}
+  #resultBox{display:none;margin-top:9px;padding:9px;border-radius:10px;background:#17252d;color:#fff}
+  #resultG{font:800 18px/1.2 "DejaVu Sans Mono","Noto Sans Mono",monospace;letter-spacing:.01em}
+  #resultMeta{margin-top:4px;color:#bcc7cc;font-size:10px}
+  #converterBtn{margin-top:8px;width:100%;background:#eef2f3;color:#17252d}
+  #uiMessage{min-height:16px;margin:6px 2px 0;font-size:10px;color:#5f696e}
+  #attr{z-index:26}
+  @media(max-width:760px){
+    #controlPanel{left:8px;right:8px;top:auto;bottom:max(7px,env(safe-area-inset-bottom));width:auto;max-height:43vh;border-radius:12px;padding:9px}
+    #panelTitle{font-size:12px;margin-bottom:4px}.inputCard{padding:6px;margin:5px 0}.packetInput{min-height:47px;font-size:10px}
+    #sacred{font-size:11px;margin:5px 3px 6px}#actionRow{margin-top:5px}#calcBtn,#clearAllBtn{padding:8px 8px;font-size:11px}
+    #out{top:max(42px,env(safe-area-inset-top));left:8px;width:calc(100vw - 16px)}
+    #hint{top:max(7px,env(safe-area-inset-top));font-size:10px}
+  }
+
+</style>
+</head>
+<body>
+<div id="map" aria-label="Χάρτης Ελλάδας ΕΑ">
+  <canvas id="cv"></canvas>
+  <div id="pin"></div>
+  <div id="pinA" class="permPin" title="Στίγμα Α"><span>Α</span></div>
+  <div id="pinB" class="permPin" title="Στίγμα Β"><span>Β</span></div>
+  <div id="distanceLabel"></div>
+</div>
+<div id="hint">κλικ / ταπ για ΕΑ24 · σύρε για μετακίνηση · pinch / wheel για zoom</div>
+<div id="status">ΕΑ · φόρτωση…</div>
+<div id="out">
+  <button id="copyBtn" type="button" title="Αντιγραφή και εισαγωγή V24/H24" aria-label="Αντιγραφή και εισαγωγή V24 και H24">⧉</button>
+  <div class="row"><div class="lab">V24</div><div id="v24" class="code"></div></div>
+  <div class="row"><div class="lab">H24</div><div id="h24" class="code"></div></div>
+</div>
+<div id="controlPanel" aria-label="APOLLO EA24 μέτρηση">
+  <div id="panelTitle">APOLLO1061 · EA24 → G</div>
+  <div id="cardA" class="inputCard">
+    <div class="inputHead"><strong>ΣΤΙΓΜΑ Α</strong><button id="clearABtn" class="miniBtn" type="button">ΚΑΘΑΡΙΣΜΟΣ Α</button></div>
+    <textarea id="inputA" class="packetInput" spellcheck="false" autocomplete="off" placeholder="V24=…&#10;H24=…"></textarea>
+  </div>
+  <div id="cardB" class="inputCard">
+    <div class="inputHead"><strong>ΣΤΙΓΜΑ Β</strong><button id="clearBBtn" class="miniBtn" type="button">ΚΑΘΑΡΙΣΜΟΣ Β</button></div>
+    <textarea id="inputB" class="packetInput" spellcheck="false" autocomplete="off" placeholder="V24=…&#10;H24=…"></textarea>
+  </div>
+  <div id="sacred">ἔστ' ἦμαρ ὅτε Φοῖβος πάλιν ἐλεύσεται καὶ  εἰς  ἀεὶ ἔσεται</div>
+  <div id="actionRow">
+    <button id="calcBtn" type="button" disabled>ΥΠΟΛΟΓΙΣΜΟΣ ΑΠΟΣΤΑΣΗΣ</button>
+    <button id="clearAllBtn" type="button">ΚΑΘΑΡΙΣΜΟΣ ΟΛΩΝ</button>
+  </div>
+  <div id="resultBox">
+    <div id="resultG"></div>
+    <div id="resultMeta">Απόσταση από τον εσωτερικό APOLLO G-engine.</div>
+    <button id="converterBtn" type="button">ΜΕΤΑΤΡΟΠΗ ΤΩΝ G ΣΕ ΜΕΤΡΑ</button>
+  </div>
+  <div id="uiMessage"></div>
+</div>
+<div id="attr">© OpenStreetMap contributors</div>
+<div id="fatal"></div>
+<script>
+(()=>{
+'use strict';
+
+/*
+  APOLLO / ΕΑ runtime.
+  Ο χάρτης που φορτώνεται εδώ είναι ήδη αποθηκευμένος στον χώρο ΕΑ.
+  Η εφαρμογή χειρίζεται μόνο H/V, πλακίδια ΕΑ και τους 24 αναδρομικούς κύκλους.
+*/
+
+const ARCHIVE_BASE='greece_apollo.eatiles.';
+const PART_SIZE=25165824;
+const ARCHIVE_SIZE=471722928;
+function archivePartName(i){return ARCHIVE_BASE+String(i+1).padStart(3,'0')}
+const MAGIC='EATILE01';
+const ENTRY_SIZE=21;
+const LEVELS24=24, VP=800, HP=1260, TIE=1e-12;
+const IONIAN={
+ 'Α':1,'Β':2,'Γ':3,'Δ':4,'Ε':5,'Ζ':7,'Η':8,'Θ':9,'Ι':10,'Κ':20,'Λ':30,'Μ':40,
+ 'Ν':50,'Ξ':60,'Ο':70,'Π':80,'Ρ':100,'Σ':200,'Τ':300,'Υ':400,'Φ':500,'Χ':600,'Ψ':700,'Ω':800
+};
+const NAMES={
+ 'Α':532,'Β':311,'Γ':85,'Δ':340,'Ε':865,'Ζ':316,'Η':309,'Θ':318,'Ι':1111,'Κ':182,'Λ':76,
+ 'Μ':50,'Ν':60,'Ξ':70,'Ο':360,'Π':90,'Ρ':170,'Σ':254,'Τ':701,'Υ':1260,'Φ':510,'Χ':610,'Ψ':710,'Ω':849
+};
+const SELFTEST=[
+ {v:570.6949209383512,h:0,V:'ΧΥΦΨΤΣΝΦΠΣΣΦΦΡΧΧΧΧΧΧΧΧΧΧ',H:'ΥΖΦΜΠΨΟΥΕΑΚΡΣΤΗΟΨΙΡΖΡΕΨΥ'},
+ {v:581.1480391613029,h:4.765613999999999,V:'ΧΥΥΝΤΡΧΩΣΚΥΛΧΤΤΡΤΤΩΧΩΨΤΦ',H:'ΥΣΨΙΣΤΕΕΕΧΡΦΩΣΧΣΦΥΨΙΤΡΣΨ'},
+ {v:570.355271680515,h:1258.0104075000002,V:'ΧΥΦΠΨΣΨΚΒΩΡΥΥΥΣΦΧΣΨΥΤΧΤΧ',H:'ΥΔΩΥΧΨΤΞΠΧΜΥΕΠΧΦΦΡΕΣΠΙΧΜ'}
+];
+
+const mod=(x,p)=>{const r=x%p;return r<0?r+p:r};
+const close=(a,b)=>Math.abs(a-b)<=TIE;
+function cdist(a,b,p){const d=mod(Math.abs(a-b),p);return Math.min(d,p-d)}
+function linearZone(x,anchors){
+ const items=Object.entries(anchors).sort((a,b)=>a[1]-b[1]);
+ const vals=items.map(v=>v[1]);
+ const ds=vals.map(v=>Math.abs(x-v));
+ const m=Math.min(...ds), tied=[];
+ ds.forEach((d,i)=>{if(close(d,m))tied.push(i)});
+ if(tied.length!==1)throw new Error('EA linear boundary');
+ const i=tied[0],[letter,value]=items[i];
+ const lo=i===0?vals[0]:(vals[i-1]+value)/2;
+ const hi=i===items.length-1?vals[vals.length-1]:(value+vals[i+1])/2;
+ return {letter,value,lo,hi};
+}
+function circularZone(phase,anchors,period,rotation){
+ phase=mod(phase,period);
+ const pts=Object.entries(anchors).map(([letter,value])=>({q:mod(value-rotation,period),letter,value})).sort((a,b)=>a.q-b.q);
+ const ds=pts.map(p=>cdist(phase,p.q,period)),m=Math.min(...ds),tied=[];
+ ds.forEach((d,i)=>{if(close(d,m))tied.push(i)});
+ if(tied.length!==1)throw new Error('EA circular boundary');
+ const i=tied[0],p=pts[i];
+ const prev=i?pts[i-1].q:pts[pts.length-1].q-period;
+ const next=i<pts.length-1?pts[i+1].q:pts[0].q+period;
+ const lo=(prev+p.q)/2,hi=(p.q+next)/2;
+ let u=phase;while(u<lo)u+=period;while(u>=hi)u-=period;
+ return {...p,lo,hi,u};
+}
+function vertical24(x){
+ const physical={...IONIAN,'Υ':400.5};
+ let z=linearZone(x,physical);
+ let phase=VP*(z.hi-x)/(z.hi-z.lo),rotation=IONIAN[z.letter],code=z.letter;
+ for(let k=2;k<=LEVELS24;k++){
+   z=circularZone(phase,IONIAN,VP,rotation);code+=z.letter;
+   phase=VP*(z.hi-z.u)/(z.hi-z.lo);rotation=IONIAN[z.letter];
+ }
+ return code;
+}
+function horizontal24(phase){
+ let z=circularZone(phase,NAMES,HP,0),code=z.letter;
+ phase=HP*(z.hi-z.u)/(z.hi-z.lo);let rotation=z.value;
+ for(let k=2;k<=LEVELS24;k++){
+   z=circularZone(phase,NAMES,HP,rotation);code+=z.letter;
+   phase=HP*(z.hi-z.u)/(z.hi-z.lo);rotation=z.value;
+ }
+ return code;
+}
+for(const t of SELFTEST){
+ if(vertical24(t.v)!==t.V||horizontal24(t.h)!==t.H){fatal('Σφάλμα εσωτερικού ελέγχου ΕΑ.');return}
+}
+
+
+// ---------------------------------------------------------------------------
+// APOLLO G — exact EA24 inverse cell decoder + internal G ellipsoid.
+// Port of the frozen APOLLO G V2.1 distance kernel.
+// IMPORTANT: no Apollo anchoring preamble runs here. The runtime consumes EA24.
+// ---------------------------------------------------------------------------
+const G_CORE_ID='APOLLO_G_JS_RUNTIME_FROM_V2_1_2026-09-08';
+const FLATTENING_G=0.003352819468541, EQUATOR_V_G=400.5, G_PER_V=2.0, QUARTER_MERIDIAN_G=799.0;
+const G_ALPHABET='ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ';
+function bgcd(a,b){a=a<0n?-a:a;b=b<0n?-b:b;while(b){const t=a%b;a=b;b=t}return a||1n}
+function R(n,d=1n){n=BigInt(n);d=BigInt(d);if(d===0n)throw new Error('Μηδενικός παρονομαστής.');if(d<0n){n=-n;d=-d}const g=bgcd(n,d);return {n:n/g,d:d/g}}
+const R0=R(0n),R2=R(2n),VP_R=R(800n),HP_R=R(1260n);
+function radd(a,b){return R(a.n*b.d+b.n*a.d,a.d*b.d)}
+function rsub(a,b){return R(a.n*b.d-b.n*a.d,a.d*b.d)}
+function rmul(a,b){return R(a.n*b.n,a.d*b.d)}
+function rdiv(a,b){if(b.n===0n)throw new Error('Διαίρεση με μηδέν.');return R(a.n*b.d,a.d*b.n)}
+function rcmp(a,b){const x=a.n*b.d,y=b.n*a.d;return x<y?-1:x>y?1:0}
+function rmin(a,b){return rcmp(a,b)<=0?a:b}function rmax(a,b){return rcmp(a,b)>=0?a:b}
+function rfloor(a){return a.n>=0n?a.n/a.d:-((-a.n+a.d-1n)/a.d)}
+function rmod(a,p){const q=rfloor(rdiv(a,p));return rsub(a,rmul(R(q),p))}
+function rnum(a){return Number(a.n)/Number(a.d)}
+function ratMap(obj){const o={};for(const [k,v] of Object.entries(obj))o[k]=R(BigInt(v));return o}
+const IONIAN_R=ratMap(IONIAN),NAMES_R=ratMap(NAMES);
+function validateEA24(code,label){code=String(code||'').normalize('NFC');if(Array.from(code).length!==24)throw new Error(`${label}: απαιτούνται ακριβώς 24 γράμματα.`);for(const ch of code)if(!G_ALPHABET.includes(ch))throw new Error(`${label}: μη επιτρεπτό γράμμα «${ch}».`);return code}
+function mergeIntervals(intervals){const items=intervals.slice().sort((a,b)=>{const c=rcmp(a[0],b[0]);return c||rcmp(a[1],b[1])});if(!items.length)return[];const out=[[items[0][0],items[0][1]]];for(let i=1;i<items.length;i++){const [lo,hi]=items[i],last=out[out.length-1];if(rcmp(lo,last[1])<=0){if(rcmp(hi,last[1])>0)last[1]=hi}else out.push([lo,hi])}return out}
+function linearBounds(letter,anchors){const items=Object.entries(anchors).sort((a,b)=>rcmp(a[1],b[1])),i=items.findIndex(x=>x[0]===letter);if(i<0)throw new Error('Άγνωστο γράμμα.');const value=items[i][1],lower=i===0?items[0][1]:rdiv(radd(items[i-1][1],value),R2),upper=i===items.length-1?items[items.length-1][1]:rdiv(radd(value,items[i+1][1]),R2);return[lower,upper]}
+function circularBounds(letter,anchors,period,rotation){const points=Object.entries(anchors).map(([ch,value])=>({q:rmod(rsub(value,rotation),period),ch,value})).sort((a,b)=>{const c=rcmp(a.q,b.q);return c||a.ch.localeCompare(b.ch)}),i=points.findIndex(p=>p.ch===letter);if(i<0)throw new Error('Άγνωστο γράμμα.');const q=points[i].q,prev=i?points[i-1].q:rsub(points[points.length-1].q,period),next=i<points.length-1?points[i+1].q:radd(points[0].q,period);return[rdiv(radd(prev,q),R2),rdiv(radd(q,next),R2)]}
+function rawIntervalsFromUnwrapped(lo,hi,period){const out=[],k0=Number(rfloor(rdiv(lo,period))-2n),k1=Number(rfloor(rdiv(hi,period))+2n);for(let k=k0;k<=k1;k++){const kp=rmul(R(BigInt(k)),period),a=rmax(R0,rsub(lo,kp)),b=rmin(period,rsub(hi,kp));if(rcmp(b,a)>0)out.push([a,b])}return mergeIntervals(out)}
+function backStep(nextRaw,lo,hi,period){const width=rsub(hi,lo),out=[];for(const[a,b]of nextRaw){const pLo=rsub(hi,rmul(rdiv(b,period),width)),pHi=rsub(hi,rmul(rdiv(a,period),width));out.push(...rawIntervalsFromUnwrapped(pLo,pHi,period))}return mergeIntervals(out)}
+function inverseVerticalCell(code){code=validateEA24(code,'V24');const physical={...IONIAN_R,'Υ':R(801n,2n)},zones=[linearBounds(code[0],physical)];for(let i=1;i<code.length;i++)zones.push(circularBounds(code[i],IONIAN_R,VP_R,IONIAN_R[code[i-1]]));let current=rawIntervalsFromUnwrapped(zones[zones.length-1][0],zones[zones.length-1][1],VP_R);for(let i=code.length-2;i>0;i--)current=backStep(current,zones[i][0],zones[i][1],VP_R);const[lo,hi]=zones[0],width=rsub(hi,lo),out=[];for(const[a,b]of current){out.push([rsub(hi,rmul(rdiv(b,VP_R),width)),rsub(hi,rmul(rdiv(a,VP_R),width))])}return mergeIntervals(out)}
+function inverseHorizontalCell(code){code=validateEA24(code,'H24');const zones=[circularBounds(code[0],NAMES_R,HP_R,R0)];for(let i=1;i<code.length;i++)zones.push(circularBounds(code[i],NAMES_R,HP_R,NAMES_R[code[i-1]]));let current=rawIntervalsFromUnwrapped(zones[zones.length-1][0],zones[zones.length-1][1],HP_R);for(let i=code.length-2;i>=0;i--)current=backStep(current,zones[i][0],zones[i][1],HP_R);return mergeIntervals(current)}
+function linearCenterWidth(intervals){if(!intervals.length)throw new Error('Κενό κατακόρυφο κελί.');let lo=intervals[0][0],hi=intervals[0][1];for(const[a,b]of intervals){if(rcmp(a,lo)<0)lo=a;if(rcmp(b,hi)>0)hi=b}return[rdiv(radd(lo,hi),R2),rsub(hi,lo)]}
+function cyclicCenterWidth(intervals,period){if(intervals.length===1){const[lo,hi]=intervals[0];return[rmod(rdiv(radd(lo,hi),R2),period),rsub(hi,lo)]}if(intervals.length===2&&rcmp(intervals[0][0],R0)===0&&rcmp(intervals[1][1],period)===0){const a=intervals[0][1],b=intervals[1][0],width=radd(a,rsub(period,b));return[rmod(radd(b,rdiv(width,R2)),period),width]}const items=mergeIntervals(intervals);if(!items.length)throw new Error('Κενό κυκλικό κελί.');const gaps=[];for(let i=0;i<items.length-1;i++)gaps.push([rsub(items[i+1][0],items[i][1]),i]);gaps.push([rsub(radd(items[0][0],period),items[items.length-1][1]),items.length-1]);let best=gaps[0];for(const g of gaps.slice(1)){const c=rcmp(g[0],best[0]);if(c>0||(c===0&&g[1]<best[1]))best=g}const width=rsub(period,best[0]),start=items[(best[1]+1)%items.length][0];return[rmod(radd(start,rdiv(width,R2)),period),width]}
+function decodePacket(packet){const V=validateEA24(packet.V24,'V24'),H=validateEA24(packet.H24,'H24'),vi=inverseVerticalCell(V),hi=inverseHorizontalCell(H),[vc,vw]=linearCenterWidth(vi),[hc,hw]=cyclicCenterWidth(hi,HP_R);return{V24:V,H24:H,V_center:rnum(vc),H_center:rnum(hc),V_cell_width:rnum(vw),H_cell_width:rnum(hw),V_components:vi.length,H_components:hi.length}}
+function simpsonG(fn,a,b){const c=(a+b)/2;return(b-a)*(fn(a)+4*fn(c)+fn(b))/6}
+function adaptiveSimpsonG(fn,a,b,tol=1e-13,depth=26){if(a===b)return 0;if(b<a)return-adaptiveSimpsonG(fn,b,a,tol,depth);const whole=simpsonG(fn,a,b);function rec(x0,x1,w,eps,left){const xm=(x0+x1)/2,l=simpsonG(fn,x0,xm),r=simpsonG(fn,xm,x1),delta=l+r-w;if(left<=0||Math.abs(delta)<=15*eps)return l+r+delta/15;return rec(x0,xm,l,eps/2,left-1)+rec(xm,x1,r,eps/2,left-1)}return rec(a,b,whole,tol,depth)}
+function deriveEllipsoidG(){const e2=FLATTENING_G*(2-FLATTENING_G),unit=p=>(1-e2)/Math.pow(1-e2*Math.sin(p)**2,1.5),quarterUnit=adaptiveSimpsonG(unit,0,Math.PI/2),a=QUARTER_MERIDIAN_G/quarterUnit,b=a*(1-FLATTENING_G);return{flattening:FLATTENING_G,eccentricity_sq:e2,semi_major_G:a,semi_minor_G:b}}
+const ELLIPSOID_G=deriveEllipsoidG();
+function vToPhiG(v){const a=ELLIPSOID_G.semi_major_G,e2=ELLIPSOID_G.eccentricity_sq,target=G_PER_V*(v-EQUATOR_V_G),rho=p=>a*(1-e2)/Math.pow(1-e2*Math.sin(p)**2,1.5),arc=p=>adaptiveSimpsonG(rho,0,p,1e-12,24);let lo=-Math.PI/2,hi=Math.PI/2;for(let i=0;i<80;i++){const mid=(lo+hi)/2;if(arc(mid)<target)lo=mid;else hi=mid}return(lo+hi)/2}
+function signedHDeltaG(h2,h1){return(h2-h1+630)%1260-630}
+function vincentyInverseG(phi1,phi2,L){const a=ELLIPSOID_G.semi_major_G,b=ELLIPSOID_G.semi_minor_G,f=ELLIPSOID_G.flattening,u1=Math.atan((1-f)*Math.tan(phi1)),u2=Math.atan((1-f)*Math.tan(phi2)),su1=Math.sin(u1),cu1=Math.cos(u1),su2=Math.sin(u2),cu2=Math.cos(u2);let lam=L,sinSigma=0,cosSigma=0,sigma=0,sinAlpha=0,cos2Alpha=0,cos2SigmaM=0,ok=false;for(let i=0;i<250;i++){const sl=Math.sin(lam),cl=Math.cos(lam),t1=cu2*sl,t2=cu1*su2-su1*cu2*cl;sinSigma=Math.hypot(t1,t2);if(sinSigma===0)return 0;cosSigma=su1*su2+cu1*cu2*cl;sigma=Math.atan2(sinSigma,cosSigma);sinAlpha=cu1*cu2*sl/sinSigma;cos2Alpha=1-sinAlpha*sinAlpha;cos2SigmaM=cos2Alpha<1e-18?0:cosSigma-2*su1*su2/cos2Alpha;const C=f/16*cos2Alpha*(4+f*(4-3*cos2Alpha)),nl=L+(1-C)*f*sinAlpha*(sigma+C*sinSigma*(cos2SigmaM+C*cosSigma*(-1+2*cos2SigmaM*cos2SigmaM)));if(Math.abs(nl-lam)<1e-14){lam=nl;ok=true;break}lam=nl}if(!ok)throw new Error('Ο εσωτερικός inverse solver δεν συνέκλινε. Δεν επιτρέπεται fallback.');const uSq=cos2Alpha*(a*a-b*b)/(b*b),A=1+uSq/16384*(4096+uSq*(-768+uSq*(320-175*uSq))),B=uSq/1024*(256+uSq*(-128+uSq*(74-47*uSq))),ds=B*sinSigma*(cos2SigmaM+B/4*(cosSigma*(-1+2*cos2SigmaM*cos2SigmaM)-B/6*cos2SigmaM*(-3+4*sinSigma*sinSigma)*(-3+4*cos2SigmaM*cos2SigmaM)));return b*A*(sigma-ds)}
+function distanceGFromPackets(pa,pb){const a=decodePacket(pa),b=decodePacket(pb),phi1=vToPhiG(a.V_center),phi2=vToPhiG(b.V_center),dh=signedHDeltaG(b.H_center,a.H_center),angle=2*Math.PI*dh/1260;return{core_id:G_CORE_ID,unit:'G',point_1:a,point_2:b,EA_delta:{dV:b.V_center-a.V_center,dH_signed:dh},distance_G:vincentyInverseG(phi1,phi2,angle)}}
+function runGSelfTest(){const p1={V24:'ΧΦΦΤΤΣΞΨΧΥΩΣΧΤΧΦΥΨΟΥΥΧΦΨ',H24:'ΥΣΤΘΑΗΕΙΤΕΙΦΤΦΣΤΣΧΕΟΦΚΚΥ'},p2={V24:'ΧΦΦΥΤΨΧΨΩΥΣΦΤΦΦΥΥΣΥΧΣΣΥΦ',H24:'ΥΣΧΙΠΡΠΦΕΥΧΙΟΝΙΙΕΜΣΟΣΙΟΙ'},r=distanceGFromPackets(p1,p2);return Math.abs(ELLIPSOID_G.semi_major_G-509.51299208276663)<1e-12&&Math.abs(r.distance_G-0.5827022727449227)<1e-12}
+try{if(!runGSelfTest())throw new Error('G self-test')}catch(_){fatal('Σφάλμα εσωτερικού ελέγχου APOLLO G.');return}
+
+const map=document.getElementById('map'),cv=document.getElementById('cv'),ctx=cv.getContext('2d',{alpha:false});
+const pin=document.getElementById('pin'),out=document.getElementById('out'),vout=document.getElementById('v24'),hout=document.getElementById('h24');
+const copyBtn=document.getElementById('copyBtn'),hint=document.getElementById('hint'),status=document.getElementById('status');
+const pinA=document.getElementById('pinA'),pinB=document.getElementById('pinB'),distanceLabel=document.getElementById('distanceLabel');
+const inputA=document.getElementById('inputA'),inputB=document.getElementById('inputB'),cardA=document.getElementById('cardA'),cardB=document.getElementById('cardB');
+const clearABtn=document.getElementById('clearABtn'),clearBBtn=document.getElementById('clearBBtn'),clearAllBtn=document.getElementById('clearAllBtn'),calcBtn=document.getElementById('calcBtn');
+const resultBox=document.getElementById('resultBox'),resultG=document.getElementById('resultG'),converterBtn=document.getElementById('converterBtn'),uiMessage=document.getElementById('uiMessage');
+let dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+let header=null,indexBytes=null,indexView=null,centerH=0,centerV=0,viewZoom=7,pinH=null,pinV=null;
+let activeTarget=null,pointA=null,pointB=null,lastDistanceG=null,lastDistanceText='';
+let raf=0,renderToken=0,loadingCount=0;
+const tileCache=new Map();
+const MAX_CACHE=220;
+let archiveReady=false;
+
+function fatal(msg){const f=document.getElementById('fatal');f.textContent=msg;f.style.display='grid'}
+function schedule(){if(!raf)raf=requestAnimationFrame(()=>{raf=0;render()})}
+function resize(){
+ const r=map.getBoundingClientRect();dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+ cv.width=Math.max(1,Math.round(r.width*dpr));cv.height=Math.max(1,Math.round(r.height*dpr));
+ cv.style.width=r.width+'px';cv.style.height=r.height+'px';ctx.setTransform(dpr,0,0,dpr,0,0);schedule();
+}
+function ppu(){return 256*Math.pow(2,viewZoom)/1260}
+function worldToScreen(h,v){const r=map.getBoundingClientRect(),s=ppu();return {x:r.width/2+(h-centerH)*s,y:r.height/2+(centerV-v)*s}}
+function screenToWorld(x,y){const r=map.getBoundingClientRect(),s=ppu();return {h:centerH+(x-r.left-r.width/2)/s,v:centerV-(y-r.top-r.height/2)/s}}
+function clampCenter(){
+ if(!header)return;
+ const [h0,v0,h1,v1]=header.bounds_ea,r=map.getBoundingClientRect(),s=ppu();
+ const hx=r.width/(2*s),vy=r.height/(2*s);
+ const loH=h0+Math.min(hx,(h1-h0)/2),hiH=h1-Math.min(hx,(h1-h0)/2);
+ const loV=v0+Math.min(vy,(v1-v0)/2),hiV=v1-Math.min(vy,(v1-v0)/2);
+ centerH=loH>hiH?(h0+h1)/2:Math.max(loH,Math.min(hiH,centerH));
+ centerV=loV>hiV?(v0+v1)/2:Math.max(loV,Math.min(hiV,centerV));
+}
+
+async function fetchPartRange(part,start,end){
+ const r=await fetch(archivePartName(part),{headers:{Range:`bytes=${start}-${end}`},cache:'force-cache'});
+ if(r.status!==206){
+   try{if(r.body)await r.body.cancel()}catch(_){ }
+   throw new Error('Ο εξυπηρετητής πρέπει να υποστηρίζει HTTP byte ranges (206).');
+ }
+ return new Uint8Array(await r.arrayBuffer());
+}
+async function fetchRange(start,end){
+ if(start<0||end<start||end>=ARCHIVE_SIZE)throw new Error('Εκτός ορίων αρχείου ΕΑ.');
+ const chunks=[];let total=0,pos=start;
+ while(pos<=end){
+   const part=Math.floor(pos/PART_SIZE),local=pos-part*PART_SIZE;
+   const stop=Math.min(end,(part+1)*PART_SIZE-1),localEnd=local+(stop-pos);
+   const b=await fetchPartRange(part,local,localEnd);chunks.push(b);total+=b.length;pos=stop+1;
+ }
+ if(chunks.length===1)return chunks[0];
+ const out=new Uint8Array(total);let off=0;for(const b of chunks){out.set(b,off);off+=b.length}return out;
+}
+function ascii(u8){return String.fromCharCode(...u8)}
+async function initArchive(){
+ if(typeof DecompressionStream==='undefined')throw new Error('Ο browser δεν υποστηρίζει αποσυμπίεση gzip.');
+ const first=await fetchRange(0,15);
+ if(ascii(first.slice(0,8))!==MAGIC)throw new Error('Μη έγκυρο αρχείο χάρτη ΕΑ.');
+ const dv=new DataView(first.buffer,first.byteOffset,first.byteLength),hlen=dv.getUint32(8,true),count=dv.getUint32(12,true);
+ const hb=await fetchRange(16,15+hlen);header=JSON.parse(new TextDecoder().decode(hb));
+ if(header.format!=='APOLLO_EATILES'||header.version!==1||count<=0)throw new Error('Ασυμβατή έκδοση χάρτη ΕΑ.');
+ const idxStart=16+hlen,idxEnd=header.data_offset-1;
+ indexBytes=await fetchRange(idxStart,idxEnd);indexView=new DataView(indexBytes.buffer,indexBytes.byteOffset,indexBytes.byteLength);
+ if(indexBytes.byteLength!==count*ENTRY_SIZE)throw new Error('Ασυνεπής δείκτης πλακιδίων ΕΑ.');
+ header.entry_count=count;
+ centerH=header.default_center[0];centerV=header.default_center[1];viewZoom=header.default_zoom||7;
+ archiveReady=true;status.textContent='ΕΑ · έτοιμο';schedule();
+}
+function entryAt(i){
+ const p=i*ENTRY_SIZE;
+ return {z:indexView.getUint8(p),x:indexView.getUint32(p+1,true),y:indexView.getUint32(p+5,true),o:Number(indexView.getBigUint64(p+9,true)),n:indexView.getUint32(p+17,true)};
+}
+function cmpEntry(e,z,x,y){if(e.z!==z)return e.z-z;if(e.x!==x)return e.x-x;return e.y-y}
+function findEntry(z,x,y){
+ let lo=0,hi=header.entry_count-1;
+ while(lo<=hi){const m=(lo+hi)>>1,e=entryAt(m),c=cmpEntry(e,z,x,y);if(c===0)return e;if(c<0)lo=m+1;else hi=m-1}
+ return null;
+}
+async function gunzip(u8){
+ const stream=new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'));
+ return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+// ---- compact MVT reader ----
+function rv(u8,p){let v=0,m=1,c;do{c=u8[p.i++];v+=(c&127)*m;m*=128}while(c&128);return v}
+function zz(v){return (v>>>1)^-(v&1)}
+function eachField(u8,fn){
+ const p={i:0};while(p.i<u8.length){const key=rv(u8,p),no=key>>>3,wt=key&7;if(wt===0){const v=rv(u8,p);fn(no,wt,v)}
+ else if(wt===1){const s=p.i;p.i+=8;fn(no,wt,u8.subarray(s,p.i))}
+ else if(wt===2){const n=rv(u8,p),s=p.i;p.i+=n;fn(no,wt,u8.subarray(s,p.i))}
+ else if(wt===5){const s=p.i;p.i+=4;fn(no,wt,u8.subarray(s,p.i))}
+ else throw new Error('PBF wire '+wt)}
+}
+function valMsg(u8){
+ let out=null;eachField(u8,(no,wt,v)=>{
+   if(no===1&&wt===2)out=new TextDecoder().decode(v);
+   else if(no===2&&wt===5)out=new DataView(v.buffer,v.byteOffset,4).getFloat32(0,true);
+   else if(no===3&&wt===1)out=new DataView(v.buffer,v.byteOffset,8).getFloat64(0,true);
+   else if((no===4||no===5)&&wt===0)out=v;
+   else if(no===6&&wt===0)out=zz(v);
+   else if(no===7&&wt===0)out=!!v;
+ });return out;
+}
+function packedInts(u8){const a=[],p={i:0};while(p.i<u8.length)a.push(rv(u8,p));return a}
+function geomParts(u8,type){
+ const p={i:0},parts=[];let x=0,y=0,cur=null,closed=false;
+ const push=()=>{if(cur&&cur.length){parts.push({pts:cur,closed});cur=null;closed=false}};
+ while(p.i<u8.length){const cmd=rv(u8,p),id=cmd&7,count=cmd>>>3;
+   if(id===1){
+     if(type!==1)push();
+     for(let k=0;k<count;k++){x+=zz(rv(u8,p));y+=zz(rv(u8,p));if(type===1)parts.push({pts:[[x,y]],closed:false});else{if(k>0)push();cur=[[x,y]]}}
+   }else if(id===2){if(!cur)cur=[];for(let k=0;k<count;k++){x+=zz(rv(u8,p));y+=zz(rv(u8,p));cur.push([x,y])}}
+   else if(id===7){closed=true}
+   else throw new Error('MVT geom '+id);
+ }
+ if(type!==1)push();return parts;
+}
+function parseFeature(u8,keys,vals){
+ let tags=[],type=0,geom=null;eachField(u8,(no,wt,v)=>{if(no===2&&wt===2)tags=packedInts(v);else if(no===3&&wt===0)type=v;else if(no===4&&wt===2)geom=v});
+ const props={};for(let i=0;i+1<tags.length;i+=2){const k=keys[tags[i]],v=vals[tags[i+1]];if(k!==undefined)props[k]=v}
+ return {type,props,parts:geom?geomParts(geom,type):[]};
+}
+function parseLayer(u8){
+ let name='',extent=4096;const keys=[],vals=[],rawFeatures=[];
+ eachField(u8,(no,wt,v)=>{if(no===1&&wt===2)name=new TextDecoder().decode(v);else if(no===2&&wt===2)rawFeatures.push(v);else if(no===3&&wt===2)keys.push(new TextDecoder().decode(v));else if(no===4&&wt===2)vals.push(valMsg(v));else if(no===5&&wt===0)extent=v});
+ const features=rawFeatures.map(f=>parseFeature(f,keys,vals));return {name,extent,features};
+}
+function parseTile(u8){const layers=[];eachField(u8,(no,wt,v)=>{if(no===3&&wt===2)layers.push(parseLayer(v))});return layers}
+
+function cacheTouch(key,obj){obj.last=performance.now();tileCache.delete(key);tileCache.set(key,obj);while(tileCache.size>MAX_CACHE){const k=tileCache.keys().next().value;tileCache.delete(k)}}
+async function loadTile(z,x,y){
+ const key=`${z}/${x}/${y}`,old=tileCache.get(key);if(old){cacheTouch(key,old);return old}
+ const e=findEntry(z,x,y);if(!e)return null;
+ const obj={state:'loading',layers:null,last:performance.now()};cacheTouch(key,obj);loadingCount++;updateStatus();
+ try{
+   const a=header.data_offset+e.o,b=a+e.n-1,packed=await fetchRange(a,b),raw=await gunzip(packed);obj.layers=parseTile(raw);obj.state='ready';
+ }catch(err){obj.state='error';obj.error=String(err)}finally{loadingCount--;updateStatus();schedule()}
+ return obj;
+}
+function updateStatus(){if(!archiveReady){status.textContent='ΕΑ · φόρτωση…';return}status.textContent=loadingCount?`ΕΑ · ${loadingCount} πλακίδια…`:`ΕΑ · z${viewZoom.toFixed(1)}`}
+
+function activeLevel(){return Math.max(8,Math.min(header.maxzoom,Math.floor(viewZoom)))}
+function visibleTileCoords(z){
+ const L=header.levels[String(z)],r=map.getBoundingClientRect(),s=ppu(),hmin=centerH-r.width/(2*s),hmax=centerH+r.width/(2*s),vmin=centerV-r.height/(2*s),vmax=centerV+r.height/(2*s);
+ const xs=[],ys=[];
+ const he=L.h_edges,ve=L.v_edges;
+ for(let i=0;i<he.length-1;i++)if(he[i+1]>=hmin&&he[i]<=hmax)xs.push(L.minx+i);
+ for(let i=0;i<ve.length-1;i++){const top=ve[i],bot=ve[i+1];if(top>=vmin&&bot<=vmax)ys.push(L.miny+i)}
+ const out=[];for(const y of ys)for(const x of xs)out.push([x,y]);return out;
+}
+function tileAffine(z,x,y,extent){
+ const L=header.levels[String(z)],ix=x-L.minx,iy=y-L.miny,he=L.h_edges,ve=L.v_edges,s=ppu(),r=map.getBoundingClientRect();
+ const h0=he[ix],h1=he[ix+1],vt=ve[iy],vb=ve[iy+1];
+ return {sx:r.width/2+(h0-centerH)*s,sy:r.height/2+(centerV-vt)*s,dx:(h1-h0)*s/extent,dy:(vt-vb)*s/extent,h0,h1,vt,vb};
+}
+function styleFor(layer,props,zv){
+ const kind=String(props.kind||'');
+ if(layer==='ocean'||layer==='water_polygons')return {fill:'#d9eef5'};
+ if(layer==='water_lines')return {stroke:'#95c9db',w:Math.max(.8,zv-10)};
+ if(layer==='land'){
+   if(/forest|wood|scrub|grass|park|garden|recreation|meadow/i.test(kind))return {fill:'#dfe8d2'};
+   if(/cemetery/i.test(kind))return {fill:'#e4e2d2'};
+   return {fill:'#eee9df'};
+ }
+ if(layer==='street_polygons')return {fill:'#f6f4ef',stroke:'#d5d0c7',w:.5};
+ if(layer==='buildings')return {fill:'#ddd7cf',stroke:'#918a81',w:zv>=17?.9:.55};
+ if(layer==='dam_polygons'||layer==='pier_polygons')return {fill:'#d8d4cc',stroke:'#999',w:.6};
+ if(layer==='streets'){
+   let w=1;if(/motorway/i.test(kind))w=4.0;else if(/trunk|primary/i.test(kind))w=3.2;else if(/secondary/i.test(kind))w=2.6;else if(/tertiary/i.test(kind))w=2.1;else if(/residential|living_street|unclassified/i.test(kind))w=1.55;else if(/path|footway|track|cycle/i.test(kind))w=.9;
+   w*=Math.max(.75,Math.min(2.2,Math.pow(1.12,zv-14)));
+   return {stroke:'#fdfcf9',casing:'#aaa49c',w,cw:w+1.35};
+ }
+ if(layer==='boundaries')return {stroke:'#b5a9a9',w:.8,dash:[4,3]};
+ if(layer==='ferries')return {stroke:'#6caac0',w:1.0,dash:[5,4]};
+ if(layer==='bridges'||layer==='dam_lines'||layer==='pier_lines')return {stroke:'#8d8983',w:1.1};
+ if(layer==='aerialways')return {stroke:'#777',w:.8,dash:[2,3]};
+ return null;
+}
+function pathFeature(f,A){
+ ctx.beginPath();for(const part of f.parts){const p=part.pts;if(!p.length)continue;ctx.moveTo(A.sx+p[0][0]*A.dx,A.sy+p[0][1]*A.dy);for(let i=1;i<p.length;i++)ctx.lineTo(A.sx+p[i][0]*A.dx,A.sy+p[i][1]*A.dy);if(part.closed)ctx.closePath()}
+}
+function featureAnchor(f,A){
+ let best=null,bestn=-1;
+ if(f.type===1&&f.parts.length){const p=f.parts[0].pts[0];return [A.sx+p[0]*A.dx,A.sy+p[1]*A.dy]}
+ for(const part of f.parts){if(part.pts.length>bestn){best=part.pts;bestn=part.pts.length}}
+ if(!best||!best.length)return null;
+ if(f.type===2){const p=best[Math.floor(best.length/2)];return [A.sx+p[0]*A.dx,A.sy+p[1]*A.dy]}
+ let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;for(const p of best){if(p[0]<minx)minx=p[0];if(p[0]>maxx)maxx=p[0];if(p[1]<miny)miny=p[1];if(p[1]>maxy)maxy=p[1]}
+ return [A.sx+(minx+maxx)/2*A.dx,A.sy+(miny+maxy)/2*A.dy];
+}
+function labelSpec(layer,f,zv,A){
+ let name=f.props.name||f.props.name_el||f.props.name_en;if(!name)return null;name=String(name);if(!name.trim())return null;
+ let pri=0,size=11,show=true;
+ if(layer==='place_labels'){pri=100;size=zv<9?12:14;const pop=Number(f.props.population||0);pri+=Math.min(30,Math.log10(Math.max(1,pop))*4)}
+ else if(layer==='boundary_labels'){pri=88;size=11}
+ else if(layer==='water_polygons_labels'||layer==='water_lines_labels'){pri=72;size=11}
+ else if(layer==='street_labels'||layer==='street_labels_points'){pri=58;size=zv>=17?12:10;show=zv>=12}
+ else if(layer==='public_transport'){pri=50;size=10;show=zv>=14}
+ else if(layer==='sites'){pri=52;size=10;show=zv>=15}
+ else if(layer==='pois'){pri=38;size=10;show=zv>=16}
+ else if(layer==='buildings'){pri=42;size=10;show=zv>=17}
+ else if(layer==='addresses'){pri=20;size=9;show=zv>=18}
+ else return null;
+ if(!show)return null;const a=featureAnchor(f,A);if(!a)return null;return {text:name,x:a[0],y:a[1],pri,size};
+}
+function drawLabels(labels,w,h){
+ labels.sort((a,b)=>b.pri-a.pri);const boxes=[];ctx.textAlign='center';ctx.textBaseline='middle';
+ let n=0;for(const L of labels){if(L.x<-100||L.x>w+100||L.y<-50||L.y>h+50)continue;ctx.font=`600 ${L.size}px system-ui,-apple-system,"Segoe UI",Arial,sans-serif`;const tw=ctx.measureText(L.text).width,b=[L.x-tw/2-3,L.y-L.size*.7-2,L.x+tw/2+3,L.y+L.size*.7+2];let hit=false;for(const q of boxes){if(!(b[2]<q[0]||b[0]>q[2]||b[3]<q[1]||b[1]>q[3])){hit=true;break}}if(hit)continue;boxes.push(b);ctx.lineJoin='round';ctx.strokeStyle='rgba(255,255,255,.94)';ctx.lineWidth=3.2;ctx.strokeText(L.text,L.x,L.y);ctx.fillStyle='#3b3a37';ctx.fillText(L.text,L.x,L.y);if(++n>420)break}
+}
+function render(){
+  resizeCanvasOnly();
+  const r=map.getBoundingClientRect(),w=r.width,h=r.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#f4f1e8';
+  ctx.fillRect(0,0,w,h);
+  if(!archiveReady)return;
+
+  clampCenter();
+  const z=activeLevel(),coords=visibleTileCoords(z),labels=[];
+  ++renderToken;
+  const ready=[];
+  for(const [x,y] of coords){
+    const key=`${z}/${x}/${y}`,obj=tileCache.get(key);
+    if(obj&&obj.state==='ready'){
+      cacheTouch(key,obj);
+      ready.push([x,y,obj]);
+    }else if(!obj){
+      loadTile(z,x,y);
+    }
+  }
+
+  const polygonOrder=['ocean','water_polygons','land','street_polygons','dam_polygons','pier_polygons','buildings'];
+  const lineOrder=['water_lines','ferries','boundaries','aerialways','dam_lines','pier_lines','bridges','streets'];
+
+  for(const lname of polygonOrder){
+    for(const [x,y,obj] of ready){
+      for(const layer of obj.layers){
+        if(layer.name!==lname)continue;
+        const A=tileAffine(z,x,y,layer.extent);
+        for(const f of layer.features){
+          const st=styleFor(lname,f.props,viewZoom);
+          if(!st||f.type!==3)continue;
+          pathFeature(f,A);
+          if(st.fill){ctx.fillStyle=st.fill;ctx.fill('evenodd')}
+          if(st.stroke){
+            ctx.strokeStyle=st.stroke;ctx.lineWidth=st.w||1;
+            ctx.setLineDash(st.dash||[]);ctx.stroke();ctx.setLineDash([]);
+          }
+        }
+      }
+    }
+  }
+
+  for(const lname of lineOrder){
+    for(const [x,y,obj] of ready){
+      for(const layer of obj.layers){
+        if(layer.name!==lname)continue;
+        const A=tileAffine(z,x,y,layer.extent);
+        for(const f of layer.features){
+          const st=styleFor(lname,f.props,viewZoom);
+          if(!st||f.type===1)continue;
+          pathFeature(f,A);
+          ctx.lineCap='round';ctx.lineJoin='round';
+          if(st.casing){
+            ctx.strokeStyle=st.casing;ctx.lineWidth=st.cw;ctx.setLineDash([]);ctx.stroke();
+          }
+          ctx.strokeStyle=st.stroke||'#888';ctx.lineWidth=st.w||1;
+          ctx.setLineDash(st.dash||[]);ctx.stroke();ctx.setLineDash([]);
+        }
+      }
+    }
+  }
+
+  const labelLayers=new Set(['place_labels','boundary_labels','water_polygons_labels','water_lines_labels','street_labels','street_labels_points','public_transport','sites','pois','addresses','buildings']);
+  for(const [x,y,obj] of ready){
+    for(const layer of obj.layers){
+      if(!labelLayers.has(layer.name))continue;
+      const A=tileAffine(z,x,y,layer.extent);
+      for(const f of layer.features){
+        const L=labelSpec(layer.name,f,viewZoom,A);
+        if(L)labels.push(L);
+      }
+    }
+  }
+  drawLabels(labels,w,h);
+
+  if(pointA&&pointB&&lastDistanceG!==null&&pointA.mapH!==null&&pointB.mapH!==null){
+    const a=worldToScreen(pointA.mapH,pointA.V_center),b=worldToScreen(pointB.mapH,pointB.V_center);
+    ctx.save();ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle='rgba(255,255,255,.92)';ctx.lineWidth=5;ctx.stroke();ctx.strokeStyle='#23343d';ctx.lineWidth=2;ctx.stroke();ctx.restore();
+  }
+  updateOverlayPositions();
+  updateStatus();
+}
+function resizeCanvasOnly(){const r=map.getBoundingClientRect(),W=Math.max(1,Math.round(r.width*dpr)),H=Math.max(1,Math.round(r.height*dpr));if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;cv.style.width=r.width+'px';cv.style.height=r.height+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}}
+
+function placeTempPopup(){if(pinH===null||out.style.display==='none')return;const p=worldToScreen(pinH,pinV),r=out.getBoundingClientRect(),pad=8;let left=p.x+18,top=p.y-r.height-20;if(left+r.width>innerWidth-pad)left=p.x-r.width-18;if(left<pad)left=pad;if(top<pad)top=p.y+18;if(top+r.height>innerHeight-pad)top=Math.max(pad,innerHeight-r.height-pad);out.style.left=left+'px';out.style.top=top+'px'}
+function updateOverlayPositions(){if(pinH!==null){const p=worldToScreen(pinH,pinV);pin.style.display='block';pin.style.left=p.x+'px';pin.style.top=p.y+'px';placeTempPopup()}else pin.style.display='none';for(const [obj,el] of [[pointA,pinA],[pointB,pinB]]){if(obj&&obj.mapH!==null){const p=worldToScreen(obj.mapH,obj.V_center);el.style.display='block';el.style.left=p.x+'px';el.style.top=p.y+'px'}else el.style.display='none'}if(pointA&&pointB&&lastDistanceG!==null&&pointA.mapH!==null&&pointB.mapH!==null){const a=worldToScreen(pointA.mapH,pointA.V_center),b=worldToScreen(pointB.mapH,pointB.V_center);distanceLabel.style.display='block';distanceLabel.textContent=lastDistanceText+' G';distanceLabel.style.left=((a.x+b.x)/2)+'px';distanceLabel.style.top=((a.y+b.y)/2-10)+'px'}else distanceLabel.style.display='none'}
+function setPin(clientX,clientY){if(!archiveReady)return;const p=screenToWorld(clientX,clientY),b=header.bounds_ea;if(p.h<b[0]||p.h>b[2]||p.v<b[1]||p.v>b[3])return;pinH=p.h;pinV=p.v;try{vout.textContent=vertical24(p.v);hout.textContent=horizontal24(mod(p.h,HP));copyBtn.disabled=false;copyBtn.style.opacity='1'}catch(_){vout.textContent='ΟΡΙΟ ΚΥΚΛΟΥ';hout.textContent='ΟΡΙΟ ΚΥΚΛΟΥ';copyBtn.disabled=true;copyBtn.style.opacity='.35'}out.style.display='block';hint.style.opacity='0';schedule();requestAnimationFrame(placeTempPopup)}
+function packetText(V,H){return`V24=${V}\nH24=${H}`}
+async function writeClipboard(text){let ok=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);ok=true}}catch(_){ }if(!ok){const ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{ok=document.execCommand('copy')}catch(_){ }ta.remove()}return ok}
+function setActiveTarget(which){activeTarget=which;cardA.classList.toggle('active',which==='A');cardB.classList.toggle('active',which==='B')}
+function invalidateMeasurement(){pointA=pointB=null;lastDistanceG=null;lastDistanceText='';resultBox.style.display='none';schedule();updateCalcEnabled()}
+function updateCalcEnabled(){calcBtn.disabled=!(inputA.value.trim()&&inputB.value.trim())}
+async function copyCodes(){if(copyBtn.disabled)return;const V=vout.textContent,H=hout.textContent,text=packetText(V,H);const copied=await writeClipboard(text);let target=null;if(!inputA.value.trim())target='A';else if(!inputB.value.trim())target='B';else target=activeTarget;if(target==='A'){inputA.value=text;setActiveTarget('A');invalidateMeasurement()}else if(target==='B'){inputB.value=text;setActiveTarget('B');invalidateMeasurement()}else uiMessage.textContent='Αντιγράφηκε. Για εισαγωγή, επίλεξε πρώτα το πεδίο Α ή Β.';if(target)uiMessage.textContent=`Το στίγμα εισήχθη στο ${target}${copied?' και αντιγράφηκε.':'.'}`;if(copied){const old=copyBtn.textContent;copyBtn.textContent='✓';setTimeout(()=>copyBtn.textContent=old,800)}updateCalcEnabled()}
+copyBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();copyCodes()});copyBtn.addEventListener('pointerdown',e=>e.stopPropagation());
+function parsePacketText(text,label){const t=String(text||'').normalize('NFC').toUpperCase(),chars='ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ',reV=new RegExp('V24\\s*[:=]?\\s*(['+chars+']{24})','u'),reH=new RegExp('H24\\s*[:=]?\\s*(['+chars+']{24})','u'),mv=t.match(reV),mh=t.match(reH);let V=mv&&mv[1],H=mh&&mh[1];if(!V||!H){const re=new RegExp('['+chars+']{24}','gu'),codes=t.match(re)||[];if(codes.length===2){V=codes[0];H=codes[1]}}if(!V||!H)throw new Error(`${label}: απαιτούνται V24 και H24, από 24 γράμματα το καθένα.`);return{V24:validateEA24(V,'V24'),H24:validateEA24(H,'H24')}}
+function unwrapHForMap(h){if(!header)return h;const[b0,,b1]=header.bounds_ea,c=header.default_center?header.default_center[0]:(b0+b1)/2,cands=[];for(let k=-2;k<=2;k++)cands.push(h+1260*k);const inside=cands.filter(x=>x>=b0&&x<=b1);const arr=inside.length?inside:cands;arr.sort((a,b)=>Math.abs(a-c)-Math.abs(b-c));return arr[0]}
+function formatG(x){return x.toFixed(12).replace('.',',')}
+function fitAB(){if(!header||!pointA||!pointB||pointA.mapH===null||pointB.mapH===null)return;centerH=(pointA.mapH+pointB.mapH)/2;centerV=(pointA.V_center+pointB.V_center)/2;const dh=Math.max(Math.abs(pointA.mapH-pointB.mapH),.02),dv=Math.max(Math.abs(pointA.V_center-pointB.V_center),.02),r=map.getBoundingClientRect(),maxPpu=Math.min(r.width*.66/dh,r.height*.55/dv),z=Math.log2(Math.max(1,maxPpu)*1260/256);viewZoom=Math.max(5,Math.min(18,z));clampCenter()}
+function calculateDistance(){try{uiMessage.textContent='';const pa=parsePacketText(inputA.value,'Στίγμα Α'),pb=parsePacketText(inputB.value,'Στίγμα Β'),r=distanceGFromPackets(pa,pb);pointA={...r.point_1,mapH:unwrapHForMap(r.point_1.H_center),packet:pa};pointB={...r.point_2,mapH:unwrapHForMap(r.point_2.H_center),packet:pb};const bounds=header&&header.bounds_ea;for(const p of [pointA,pointB])if(bounds&&(p.mapH<bounds[0]||p.mapH>bounds[2]||p.V_center<bounds[1]||p.V_center>bounds[3]))p.mapH=null;lastDistanceG=r.distance_G;lastDistanceText=formatG(lastDistanceG);resultG.textContent=lastDistanceText+' G';resultBox.style.display='block';if(pointA.mapH!==null&&pointB.mapH!==null)fitAB();else uiMessage.textContent='Η απόσταση υπολογίστηκε, αλλά τουλάχιστον ένα στίγμα βρίσκεται εκτός του χάρτη Ελλάδος.';schedule()}catch(err){invalidateMeasurement();uiMessage.textContent=String(err.message||err)}}
+function clearOne(which){if(which==='A')inputA.value='';else inputB.value='';invalidateMeasurement();uiMessage.textContent='';updateCalcEnabled()}
+inputA.addEventListener('focus',()=>setActiveTarget('A'));inputB.addEventListener('focus',()=>setActiveTarget('B'));inputA.addEventListener('pointerdown',()=>setActiveTarget('A'));inputB.addEventListener('pointerdown',()=>setActiveTarget('B'));
+inputA.addEventListener('input',()=>{invalidateMeasurement();updateCalcEnabled()});inputB.addEventListener('input',()=>{invalidateMeasurement();updateCalcEnabled()});
+clearABtn.addEventListener('click',()=>clearOne('A'));clearBBtn.addEventListener('click',()=>clearOne('B'));clearAllBtn.addEventListener('click',()=>{inputA.value='';inputB.value='';pinH=pinV=null;out.style.display='none';activeTarget=null;cardA.classList.remove('active');cardB.classList.remove('active');invalidateMeasurement();uiMessage.textContent='';updateCalcEnabled()});calcBtn.addEventListener('click',calculateDistance);
+pinA.addEventListener('click',e=>{e.stopPropagation();if(pointA){vout.textContent=pointA.packet.V24;hout.textContent=pointA.packet.H24;pinH=pointA.mapH;pinV=pointA.V_center;copyBtn.disabled=false;out.style.display='block';schedule()}});pinB.addEventListener('click',e=>{e.stopPropagation();if(pointB){vout.textContent=pointB.packet.V24;hout.textContent=pointB.packet.H24;pinH=pointB.mapH;pinV=pointB.V_center;copyBtn.disabled=false;out.style.display='block';schedule()}});
+converterBtn.addEventListener('click',()=>{if(lastDistanceG===null)return;const g=lastDistanceG.toFixed(12),url='converter.html?g='+encodeURIComponent(g),w=window.open(url,'APOLLO_G_CONVERTER','popup=yes,width=520,height=650,resizable=yes,scrollbars=yes');if(w)w.focus();else uiMessage.textContent='Ο browser εμπόδισε το αναδυόμενο παράθυρο του converter.'});
+function zoomAt(next,cx,cy){next=Math.max(5,Math.min(21,next));if(Math.abs(next-viewZoom)<1e-9)return;const before=screenToWorld(cx,cy),r=map.getBoundingClientRect();viewZoom=next;const s=ppu();centerH=before.h-(cx-r.left-r.width/2)/s;centerV=before.v+(cy-r.top-r.height/2)/s;clampCenter();schedule()}
+map.addEventListener('wheel',e=>{e.preventDefault();zoomAt(viewZoom+(e.deltaY<0?.5:-.5),e.clientX,e.clientY)},{passive:false});
+map.addEventListener('dblclick',e=>{e.preventDefault();zoomAt(viewZoom+1,e.clientX,e.clientY)});map.addEventListener('contextmenu',e=>e.preventDefault());
+const pointers=new Map();let drag=null,pinchBase=null,hadMultiTouch=false;
+map.addEventListener('pointerdown',e=>{map.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){drag={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,t:performance.now(),moved:false};hadMultiTouch=false;map.classList.add('dragging')}else{hadMultiTouch=true;const ps=[...pointers.values()];pinchBase=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)}});
+map.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===2){hadMultiTouch=true;const ps=[...pointers.values()],d=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y),mx=(ps[0].x+ps[1].x)/2,my=(ps[0].y+ps[1].y)/2;if(pinchBase&&d/pinchBase>1.22){zoomAt(viewZoom+.5,mx,my);pinchBase=d}else if(pinchBase&&d/pinchBase<.82){zoomAt(viewZoom-.5,mx,my);pinchBase=d}return}if(drag&&drag.id===e.pointerId){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)>9)drag.moved=true;const s=ppu();centerH-=dx/s;centerV+=dy/s;drag.x=e.clientX;drag.y=e.clientY;clampCenter();schedule()}});
+function endPointer(e){const was=drag&&drag.id===e.pointerId?{...drag}:null;pointers.delete(e.pointerId);if(was&&!was.moved&&!hadMultiTouch&&performance.now()-was.t<700)setPin(e.clientX,e.clientY);if(pointers.size<2)pinchBase=null;if(pointers.size===0){drag=null;hadMultiTouch=false;map.classList.remove('dragging')}}
+map.addEventListener('pointerup',endPointer);map.addEventListener('pointercancel',endPointer);
+window.addEventListener('resize',()=>{resize();clampCenter();schedule()});
+updateCalcEnabled();resize();setTimeout(()=>{hint.style.opacity='.35'},4500);
+initArchive().catch(e=>fatal('Αποτυχία φόρτωσης χάρτη ΕΑ.\n'+e.message));
+})();
+</script>
+</body>
+</html>
